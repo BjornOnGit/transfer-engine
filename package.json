@@ -17,5 +17,15 @@
   "bugs": {
     "url": "https://github.com/BjornOnGit/transfer-engine/issues"
   },
-  "homepage": "https://github.com/BjornOnGit/transfer-engine#readme"
+  "homepage": "https://github.com/BjornOnGit/transfer-engine#readme",
+  "dependencies": {
+    "decimal.js": "^10.6.0",
+    "dotenv": "^18.0.5",
+    "express": "^5.2.1",
+    "ioredis": "^6.0.0",
+    "pg": "^8.23.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.14"
+  }
 }
