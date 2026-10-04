@@ -9,6 +9,8 @@ app.get('/health', (req, res) => {
   res.status(200).json({ status: 'ok' });
 });
 
+app.use('/auth', require('./modules/auth/auth.routes'));
+
 app.use(errorHandler);
 
 module.exports = app;

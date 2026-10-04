@@ -21,10 +21,12 @@
   },
   "homepage": "https://github.com/BjornOnGit/transfer-engine#readme",
   "dependencies": {
+    "bcrypt": "^6.0.0",
     "decimal.js": "^10.6.0",
     "dotenv": "^18.0.5",
     "express": "^5.2.1",
     "ioredis": "^6.0.0",
+    "jsonwebtoken": "^9.0.3",
     "pg": "^8.23.1"
   },
   "devDependencies": {
