@@ -4,6 +4,7 @@ const fxRepository = require('../fx/fx.repository');
 const ledgerService = require('../ledger/ledger.service');
 const { canTransition } = require('./transfer.state-machine');
 const { compare, multiply, format } = require('../../lib/money');
+const notificationService = require('../notifications/notification.service');
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const AMOUNT_RE = /^\d+(\.\d{1,2})?$/;
@@ -67,15 +68,32 @@ async function createTransfer({ userId, senderAccountId, receiverAccountId, amou
   const lock = await fxService.lockRate(transfer.id, pair);
   await moveTo(transfer.id, 'initiated', 'rate_locked', { lockedRateId: lock.id });
 
-  await ledgerService.recordCrossCurrencyTransfer({
-    transferId: transfer.id,
-    senderAccountId, receiverAccountId, sourcePoolAccountId, destPoolAccountId,
-    sourceAmount: amount, sourceCurrency: sender.currency,
-    destAmount: format(multiply(amount, lock.rate), 2), destCurrency: receiver.currency,
-    afterWrite: (client) => moveTo(transfer.id, 'rate_locked', 'funds_moved', { db: client }),
-  });
+  try {
+    await ledgerService.recordCrossCurrencyTransfer({
+      transferId: transfer.id,
+      senderAccountId, receiverAccountId, sourcePoolAccountId, destPoolAccountId,
+      sourceAmount: amount, sourceCurrency: sender.currency,
+      destAmount: format(multiply(amount, lock.rate), 2), destCurrency: receiver.currency,
+      afterWrite: (client) => moveTo(transfer.id, 'rate_locked', 'funds_moved', { db: client }),
+    });
+  } catch (err) {
+    // A business rejection (insufficient funds, bad amount, ...) means the ledger transaction
+    // rolled back and nothing moved, so the transfer is safely marked failed.
+    // Unexpected errors (status >= 500 or none) are left as-is for investigation.
+    if (err.status && err.status < 500) {
+      await moveTo(transfer.id, 'rate_locked', 'failed').catch((e) =>
+        console.error('[transfer] could not mark transfer failed', e));
+    }
+    throw err;
+  }
 
   await moveTo(transfer.id, 'funds_moved', 'completed');
+  // Money has already moved, so a notification failure must never fail the request.
+  try {
+    await notificationService.notifyTransferCompleted(transfer.id);
+  } catch (err) {
+    console.error('[transfer] failed to enqueue notification', err);
+  }
   return present(await transferRepository.getTransferWithLock(transfer.id));
 }
 

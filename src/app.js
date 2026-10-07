@@ -12,6 +12,7 @@ app.get('/health', (req, res) => {
 app.use('/auth', require('./modules/auth/auth.routes'));
 app.use('/accounts', require('./modules/accounts/account.routes'));
 app.use('/transfers', require('./modules/transfers/transfer.routes'));
+app.use('/transfers', require('./modules/notifications/notification.routes'));
 
 app.use(errorHandler);
 

@@ -8,6 +8,7 @@ module.exports = (err, req, res, next) => {
     error: {
       code: err.code || (status >= 500 ? 'INTERNAL_ERROR' : 'REQUEST_ERROR'),
       message: status >= 500 ? 'Internal server error' : err.message,
+      ...(err.details ? { details: err.details } : {}),
     },
   });
 };
