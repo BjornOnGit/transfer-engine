@@ -5,6 +5,15 @@ const { compare } = require('../../lib/money');
 const httpError = (status, code, message) =>
   Object.assign(new Error(message), { status, code });
 
+class InsufficientFundsError extends Error {
+  constructor(message = 'Insufficient funds') {
+    super(message);
+    this.name = 'InsufficientFundsError';
+    this.status = 422;
+    this.code = 'INSUFFICIENT_FUNDS';
+  }
+}
+
 async function recordTransfer(transferId, debitAccountId, creditAccountId, amount, currency) {
   if (compare(amount, '0') <= 0) throw httpError(400, 'INVALID_AMOUNT', 'Amount must be positive');
   if (debitAccountId === creditAccountId) {
@@ -14,6 +23,12 @@ async function recordTransfer(transferId, debitAccountId, creditAccountId, amoun
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
+
+    const locked = await ledgerRepository.lockAccounts(client, [debitAccountId, creditAccountId]);
+    if (locked.length !== 2) throw httpError(422, 'ACCOUNT_MISMATCH', 'Account not found');
+    const debitAccount = locked.find((a) => a.id === debitAccountId);
+    if (compare(debitAccount.cached_balance, amount) < 0) throw new InsufficientFundsError();
+
     const debit = await ledgerRepository.insertEntry(client, {
       transferId, accountId: debitAccountId, direction: 'debit', amount, currency,
     });
@@ -32,4 +47,4 @@ async function recordTransfer(transferId, debitAccountId, creditAccountId, amoun
   }
 }
 
-module.exports = { recordTransfer };
+module.exports = { recordTransfer, InsufficientFundsError };

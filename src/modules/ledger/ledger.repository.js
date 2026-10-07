@@ -1,3 +1,5 @@
+const pool = require('../../config/database');
+
 const httpError = (status, code, message) =>
   Object.assign(new Error(message), { status, code });
 
@@ -26,4 +28,23 @@ async function applyBalanceChange(client, accountId, amount, currency, direction
   }
 }
 
-module.exports = { insertEntry, applyBalanceChange };
+// Balance derived purely from ledger entries, independent of accounts.cached_balance.
+async function getBalanceFromLedger(accountId, db = pool) {
+  const { rows } = await db.query(
+    `SELECT COALESCE(SUM(CASE WHEN direction = 'credit' THEN amount ELSE -amount END), 0)::text AS balance
+     FROM ledger_entries WHERE account_id = $1`,
+    [accountId]
+  );
+  return rows[0].balance;
+}
+
+// Locks the rows (in id order, to avoid deadlocks) until the surrounding transaction ends.
+async function lockAccounts(client, accountIds) {
+  const { rows } = await client.query(
+    'SELECT id, cached_balance FROM accounts WHERE id = ANY($1::uuid[]) ORDER BY id FOR UPDATE',
+    [accountIds]
+  );
+  return rows;
+}
+
+module.exports = { insertEntry, applyBalanceChange, getBalanceFromLedger, lockAccounts };
