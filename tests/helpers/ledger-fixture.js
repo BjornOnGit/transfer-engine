@@ -5,7 +5,11 @@ const OWNED = `SELECT id FROM accounts WHERE user_id IN (SELECT id FROM users WH
 
 async function cleanupFixture(prefix) {
   const e = [emailsFor(prefix)];
-  await pool.query(`DELETE FROM ledger_entries WHERE account_id IN (${OWNED})`, e);
+  await pool.query(
+    `DELETE FROM ledger_entries
+     WHERE account_id IN (${OWNED})
+        OR transfer_id IN (SELECT id FROM transfers WHERE sender_account_id IN (${OWNED}))`, e);
+  await pool.query(`UPDATE transfers SET locked_rate_id = NULL WHERE sender_account_id IN (${OWNED})`, e);
   await pool.query(`DELETE FROM fx_rate_locks WHERE transfer_id IN (SELECT id FROM transfers WHERE sender_account_id IN (${OWNED}))`, e);
   await pool.query(`DELETE FROM notification_deliveries WHERE transfer_id IN (SELECT id FROM transfers WHERE sender_account_id IN (${OWNED}))`, e);
   await pool.query(`DELETE FROM transfers WHERE sender_account_id IN (${OWNED})`, e);
